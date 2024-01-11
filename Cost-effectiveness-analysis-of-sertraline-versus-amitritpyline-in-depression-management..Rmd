@@ -1,0 +1,247 @@
+---
+title: "Cost effectiveness analysis of sertraline versus Amitriptyline"
+subtitle: "markov cohort simulation with probability sensitivity analysis"
+author: "Joshua Edefo"
+date: "2024-01-11"
+email: "edefojoshua2000@yahoo.com"
+output: github_document
+---
+libraries
+```{r a, message=FALSE}
+# Markov cohort simulation with probability Sensitivity analysis of Sertraline
+library(markovchain)
+library(cartography)
+library(rmarkdown)
+library(sf)
+library(sp)
+```
+Sertraline
+```
+Diagrammatic presentation of transition matrix
+```{r ab}
+Set.matrix<-new("markovchain", states=c("Depressed", "Borderline", "Depression_free"), 
+         transitionMatrix=matrix(data=c(0.1, 0.3, 0.6, 0.3, 0.1, 0.6, 0.1, 0.1, 0.8), 
+                                   byrow = TRUE, nrow =  3), name = "Sertraline") 
+plot(Set.matrix, package = "daigram")
+```
+```{r b}
+# R code inside a function
+N_psa <- 10000
+
+# distribution of transition probability matrix using beta distribution with SD= 25% of the mean value
+params<-data.frame(
+  p_Depressed_Depressed   = rbeta(N_psa, 10, 90),
+  p_Depressed_Borderline  = rbeta(N_psa,  30, 70),
+  p_Depressed_Depressionfree  = rbeta(N_psa,  60, 40),
+  p_Bordeline_Depressed  = rbeta(N_psa,  30, 70),
+  p_Borderline_Borderline = rbeta(N_psa, 10, 90),
+  p_Borderline_Depressionfree = rbeta(N_psa,  60, 40),
+  p_Depressionfree_Depressed  = rbeta(N_psa,  10, 90),
+  p_Depressionfree_Borderline = rbeta(N_psa,  10,  90),
+  p_Depressionfree_Depressionfree = rbeta(N_psa, 80, 20),
+  
+  # distribution of cost using gamma distribution with SD= 25% of the mean value
+  c_Depressed = rgamma(N_psa, shape =16, scale = 1432/16),
+  c_Borderline = rgamma(N_psa, shape =16, scale =4296/16),
+  c_Depressionfree = rgamma(N_psa, shape =16, scale =8593/16),
+  
+  # distribution of effect using gamma distribution with SD= 25% of the mean value
+  q_Depressed = rgamma (N_psa, shape =16, scale = 2/16),
+  q_Borderline = rgamma(N_psa, shape =16, scale = 6/16),
+  q_Depressionfree = rgamma(N_psa, shape =16, scale = 9/16)
+)
+
+model.se<- function(.params) { 
+  with(.params, {
+    
+    n_t<-40     # no of cycles
+    n_s<-3      # no of states
+    n_c<-1000   #  no of persons in cohort
+    
+    v_state_names<-c("Depressed", "Borderline", "Depressionfree") # names of states
+    
+    # probability tranistion matrix
+    m_P<-matrix(0, nrow = 3, ncol =3, 
+                dimnames = list(from = v_state_names, to = v_state_names ))
+    m_P["Depressed", "Depressed"]<-p_Depressed_Depressed 
+    m_P["Depressed", "Borderline"]<- p_Depressed_Borderline
+    m_P["Depressed", "Depressionfree"]<-  p_Depressed_Depressionfree
+    m_P["Borderline", "Depressed"]<-p_Bordeline_Depressed
+    m_P["Borderline", "Borderline"]<-p_Borderline_Borderline 
+    m_P["Borderline", "Depressionfree"]<-  p_Borderline_Depressionfree
+    m_P["Depressionfree", "Depressed"]<-p_Depressionfree_Depressed
+    m_P["Depressionfree", "Borderline"]<-p_Depressionfree_Borderline
+    m_P["Depressionfree", "Depressionfree"]<-p_Depressionfree_Depressionfree
+    
+    # State membership
+    state_membership<-array(NA_real_,  dim= c(n_t, n_s), dimnames = list (cycle =1:n_t, state = v_state_names ))
+    state_membership[1, ] <- c(n_c, 0, 0)
+    for (i in 2:n_t) {state_membership[i, ] <-state_membership[i-1, ] %*% m_P}
+    
+    # payoffs
+    m_payoffs <- matrix(0, nrow = 3, ncol = 2, 
+                        dimnames = list(v_state_names, payoff= c("Cost", "HDS")))
+    m_payoffs["Depressed", "Cost"]<- c_Depressed
+    m_payoffs["Depressed", "HDS"]<- q_Depressed
+    m_payoffs["Borderline", "Cost"]<- c_Borderline
+    m_payoffs["Borderline", "HDS"]<- q_Borderline
+    m_payoffs["Depressionfree", "Cost"]<- c_Depressionfree
+    m_payoffs["Depressionfree", "HDS"]<- q_Depressionfree
+    
+    payoff_trace.se<-state_membership %*% m_payoffs
+    payoff_trace.se
+    
+    summary_results.se = colSums(payoff_trace.se)/n_c 
+    
+  })
+}
+psa_results.se <-
+  t(sapply(
+    X = split(params, 1:N_psa), 
+    FUN = model.se,
+    simplify = TRUE ))
+
+write.csv(psa_results.se, file="psa_coef3_se.csv")
+
+plot(
+  psa_results.se[, 2],
+  psa_results.se[, 1],
+  type = 'p',
+  xlab = "HDS",
+  ylab = "Cost"
+)
+```
+Amitriptyline
+
+Diagrammatic presentation of transition matrix
+```{r ca}
+Ami.matrix<-new("markovchain", states=c("Depressed", "Borderline", "Depression_free"), 
+         transitionMatrix=matrix(data=c(0.2, 0.3, 0.5, 0.4, 0.2, 0.4, 0.2, 0.2, 0.6), 
+                                   byrow = TRUE, nrow =  3), name = "Amitriptyline") 
+plot(Ami.matrix, package = "daigram")
+```
+Markov cohort simulation with probability Sensitivity analysis of amitriptlyine
+
+```{r c}
+N_psa <- 10000
+
+# R code inside a function
+
+# distribution of transition probability matrix using beta distribution with SD= 25% of the mean value
+params<-data.frame(
+  p_Depressed_Depressed   = rbeta(N_psa, 20, 80),
+  p_Depressed_Borderline  = rbeta(N_psa,  30, 70),
+  p_Depressed_Depressionfree  = rbeta(N_psa,  50, 50),
+  p_Bordeline_Depressed  = rbeta(N_psa,  40, 60),
+  p_Borderline_Borderline = rbeta(N_psa, 20, 80),
+  p_Borderline_Depressionfree = rbeta(N_psa,  40, 80),
+  p_Depressionfree_Depressed  = rbeta(N_psa,  20, 80),
+  p_Depressionfree_Borderline = rbeta(N_psa,  20,  80),
+  p_Depressionfree_Depressionfree = rbeta(N_psa, 60, 40),
+ 
+  # distribution of cost using gamma distribution with SD= 25% of the mean value 
+  c_Depressed = rgamma(N_psa, shape = 16.05, scale = 41.19),
+  c_Borderline = rgamma(N_psa, shape = 16, scale = 62), 
+  c_Depressionfree = rgamma(N_psa, shape = 16.01, scale = 103.19),
+  
+  # distribution of cost using gamma distribution with SD= 25% of the mean value
+  q_Depressed = rgamma(N_psa, shape = 16., scale = 0.125),
+  q_Borderline = rgamma(N_psa, shape = 16.13, scale = 0.31),
+  q_Depressionfree = rgamma(N_psa, shape = 16.05, scale = 0.5)
+)
+
+model.ami<- function(.params) { 
+  with(.params, {
+    
+    n_t<-40
+    n_s<-3
+    n_c<-1000
+    
+    v_state_names<-c("Depressed", "Borderline", "Depressionfree")
+    m_P<-matrix(0, nrow = 3, ncol =3, 
+                dimnames = list(from = v_state_names, to = v_state_names ))
+    m_P["Depressed", "Depressed"]<-p_Depressed_Depressed 
+    m_P["Depressed", "Borderline"]<- p_Depressed_Borderline
+    m_P["Depressed", "Depressionfree"]<-  p_Depressed_Depressionfree
+    m_P["Borderline", "Depressed"]<-p_Bordeline_Depressed
+    m_P["Borderline", "Borderline"]<-p_Borderline_Borderline 
+    m_P["Borderline", "Depressionfree"]<-  p_Borderline_Depressionfree
+    m_P["Depressionfree", "Depressed"]<-p_Depressionfree_Depressed
+    m_P["Depressionfree", "Borderline"]<-p_Depressionfree_Borderline
+    m_P["Depressionfree", "Depressionfree"]<-p_Depressionfree_Depressionfree
+    
+    # State membership
+    state_membership<-array(NA_real_,  dim= c(n_t, n_s), dimnames = list (cycle =1:n_t, state = v_state_names ))
+    state_membership[1, ] <- c(n_c, 0, 0)
+    for (i in 2:n_t) {state_membership[i, ] <-state_membership[i-1, ] %*% m_P}
+    
+    # payoffs
+    m_payoffs <- matrix(0, nrow = 3, ncol = 2, 
+                        dimnames = list(v_state_names, payoff= c("Cost", "HDS")))
+    m_payoffs["Depressed", "Cost"]<- c_Depressed
+    m_payoffs["Depressed", "HDS"]<- q_Depressed
+    m_payoffs["Borderline", "Cost"]<- c_Borderline
+    m_payoffs["Borderline", "HDS"]<- q_Borderline
+    m_payoffs["Depressionfree", "Cost"]<- c_Depressionfree
+    m_payoffs["Depressionfree", "HDS"]<- q_Depressionfree
+    
+    payoff_trace.ami<-state_membership %*% m_payoffs
+    payoff_trace.ami
+    
+    summary_results.ami = colSums(payoff_trace.ami)/n_c 
+    
+  })
+}
+psa_results.ami <-
+  t(sapply(
+    X = split(params, 1:N_psa), 
+    FUN = model.ami,
+    simplify = TRUE ))
+
+write.csv(psa_results.ami, file="psa_coef3.csv")
+
+plot(
+  psa_results.ami[, 2],
+  psa_results.ami[, 1],
+  type = 'p',
+  xlab = "HDS",
+  ylab = "Cost"
+
+)
+```
+Ecconomic evaluation
+
+```{r d}
+# incremental cost
+data.result<- data.frame(psa_results.se, psa_results.ami)
+
+
+inc_cost<- (data.result$Cost - data.result$Cost.1) 
+
+
+# incremental effect
+inc_effect<- (data.result$HDS - data.result$HDS.1)
+
+# incremental cost effectiveness ratio
+inc.CER <- inc_cost/inc_effect
+
+
+# using a willingness to pay threshold of NGN18,000
+
+wtp =  18000
+
+psa_wtp <- sum(inc.CER <= wtp)
+
+# percentage of cost effectiveness of sertraline over amitriptyline at wtp
+
+result <- (psa_wtp /N_psa) * 100
+ 
+result
+```
+
+session information
+
+```{r e}
+sessionInfo()
+```
+
