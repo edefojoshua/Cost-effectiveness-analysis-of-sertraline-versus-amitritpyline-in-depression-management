@@ -1,2 +1,3 @@
-# Cost-effectiveness-analysis-of-sertraline-versus-amitritpyline-in-depression-management
-R code 
+A Markov cohort simulation and probabilistic sensitivity analysis (PSA) to compare the cost-effectiveness of Sertraline and Amitriptyline for depression treatment. It defines Markov models with three health states (Depressed, Borderline, Depression-free) and transition probabilities sampled from beta distributions. Costs and health benefits (HDS) are modelled using gamma distributions. The model simulates state transitions, costs, and effects over multiple cycles. Results include incremental cost-effectiveness ratios (ICERs) and cost-effectiveness acceptability curves (CEACs). The analysis determines which drug is more cost-effective at different willingness-to-pay (WTP) thresholds. At a WTP threshold of NGN5400, Sertraline has a 78% probability of being more cost-effective than Amitriptyline.
+ 
+
